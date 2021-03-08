@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!DOCTYPE repositories SYSTEM "http://www.gentoo.org/dtd/repositories.dtd">
+<repositories xmlns="" version="1.0">
+  <repo quality="core" status="official">
+    <name>gentoo</name>
+    <description>Official Gentoo ebuild repository</description>
+    <homepage>https://gentoo.org/</homepage>
+    <owner type="project">
+      <email>bug-wranglers@gentoo.org</email>
+    </owner>
+    <source type="rsync">rsync://rsync.gentoo.org/gentoo-portage</source>
+    <source type="git">https://anongit.gentoo.org/git/repo/gentoo.git</source>
+    <feed>https://cgit.gentoo.org/repo/gentoo.git/atom/</feed>
+  </repo>
+</repositories>

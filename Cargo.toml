@@ -1,0 +1,22 @@
+[package]
+name = "cargo-ebuild-audit"
+version = "0.1.0"
+authors = ["Julius Michaelis <ceba@liftm.de>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cargo = { version = "0.51", features = [ "pretty-env-logger", "openssl" ] }
+rustsec = "0.23"
+git2 = "0.13"
+git2-curl = "0.14"
+quick-xml = { version = "0.22", features = [ "serialize" ] }
+serde = { version = "^1.0", features = [ "derive" ] }
+log = "0.4"
+pretty_env_logger = "0.4"
+clap = "3.0.0-beta.2"
+anyhow = "1.0"
+rayon = "1.5"
+regex = "1"
+lazy_static = "1.4.0"
