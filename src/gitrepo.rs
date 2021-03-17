@@ -40,7 +40,13 @@ impl RepoRepo {
         Ok(RepoRepo { repo })
     }
 
-    pub fn up(&self, url: &str) -> Result<git2::Reference> {
+    pub fn up_or_head(&self, url: &str, head: bool) -> Result<git2::Reference> {
+        Ok(match head {
+            true => self.repo.head()?,
+            false => self.up(url)?,
+        })
+    }
+    fn up(&self, url: &str) -> Result<git2::Reference> {
         let url = match url.starts_with("ssh+git://") || url.starts_with("git+ssh://") {
             true => &url[10..],
             false => url,
