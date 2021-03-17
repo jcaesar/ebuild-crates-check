@@ -9,10 +9,12 @@ lazy_static::lazy_static! {
 }
 
 pub fn split_pkgver(path: &str) -> Option<(&str, &str)> {
-    EBUILD_DOTS.captures(path).map(|capt| (
-        capt.name("pn").unwrap().as_str(),
-        capt.name("ver").unwrap().as_str(),
-    ))
+    EBUILD_DOTS.captures(path).map(|capt| {
+        (
+            capt.name("pn").unwrap().as_str(),
+            capt.name("ver").unwrap().as_str(),
+        )
+    })
 }
 
 #[cfg(test)]
