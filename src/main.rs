@@ -415,24 +415,44 @@ fn list_crates<'a>(
                 }
                 let content = entry.to_object(repo).unwrap();
                 let content = content.as_blob().expect("Object blob").content();
-                let content = serde_json::from_slice::<RegistryPackage>(content).into_iter();
-                for info in content {
-                    let name =
-                        Name::from_str(&info.name).expect("crates.io crate with invalid name");
-                    let vers =
-                        Version::from_str(&info.vers).expect("crates.io version spec unparseable");
-                    ret.entry(name)
-                        .or_insert_with(HashMap::new)
-                        .insert(vers, info.yanked);
-                    //match info {
-                    //    Ok(info) => {
-                    //        log::trace!("{}/{}: {:?}", folder, name, info);
-                    //    },
-                    //    Err(e) => log::error!("Cannot parse crate info for {}{}: {}", folder, name, e),
-                    //}
+                use std::io::BufRead;
+                for (i, line) in content.lines().enumerate() {
+                    match parse_spec(folder, name, line, ret) {
+                        Ok(()) => (),
+                        Err(e) => log::error!(
+                            "Cannot parse crate info for {}{}:{}: {}",
+                            folder,
+                            name,
+                            i + 1,
+                            e
+                        ),
+                    }
                 }
+            } else {
+                log::error!("Strange object without name in {}", folder);
             }
         }
         git2::TreeWalkResult::Ok
     }
+}
+
+fn parse_spec(
+    folder: &str,
+    filename: &str,
+    spec: Result<String, std::io::Error>,
+    ret: &mut YankingStatus,
+) -> Result<()> {
+    let spec = spec.context("Read line")?;
+    let info = serde_json::from_str::<RegistryPackage>(&spec).context("Parse JSON line")?;
+
+    let name = Name::from_str(&info.name).context("invalid name")?;
+    let vers = Version::from_str(&info.vers).context("version spec unparseable")?;
+
+    ret.entry(name)
+        .or_insert_with(HashMap::new)
+        .insert(vers, info.yanked);
+
+    log::trace!("{}/{}: {:?}", folder, filename, info);
+
+    Ok(())
 }
