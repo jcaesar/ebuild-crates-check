@@ -22,20 +22,33 @@ pub struct RepoRepo {
 
 impl RepoRepo {
     pub fn on(path: &Path) -> Result<Self> {
+        Self::open(path, true).context("Open bare repository")
+    }
+    pub fn on_checkout(path: &Path) -> Result<Self> {
+        Self::open(path, false).context("Open checked-out/non-bare repository")
+    }
+    fn open(path: &Path, bare: bool) -> Result<Self> {
         if path.is_dir() && fs::read_dir(&path)?.next().is_none() {
             log::warn!("Cleaning empty dir {}", path.to_string_lossy());
             fs::remove_dir(&path)?;
         }
 
         let repo = if path.is_dir() {
-            git2::Repository::open_bare(path).context("Open existing repository")
+            git2::Repository::open(path).context("Open existing repository")
         } else {
             let mut iopts = git2::RepositoryInitOptions::new();
-            iopts.bare(true);
+            iopts.bare(bare);
             iopts.external_template(false);
             git2::Repository::init_opts(path, &iopts).context("Init new bare repository")
         };
         let repo = repo.context(format!("Repo at {}", path.to_string_lossy()))?;
+        anyhow::ensure!(
+            repo.is_bare() == bare,
+            "Repo at {} bareness: needed: {} - present: {}",
+            path.display(),
+            bare,
+            repo.is_bare()
+        );
 
         Ok(RepoRepo { repo })
     }
@@ -43,7 +56,7 @@ impl RepoRepo {
     pub fn up_or_head(&self, url: &str, head: bool) -> Result<git2::Reference> {
         Ok(match head {
             true => self.repo.head()?,
-            false => self.up(url)?,
+            false => self.up(url).context("Update")?,
         })
     }
     fn up(&self, url: &str) -> Result<git2::Reference> {
@@ -108,6 +121,23 @@ impl RepoRepo {
                 .repo
                 .reference(&head_name, head_oid, true, &format!("Update from {}", url))
                 .context("Store head")?;
+
+            if !self.repo.is_bare() {
+                // TODO: should this also be done in offline mode?
+                self.repo
+                    .checkout_tree(
+                        head.peel_to_tree()
+                            .context("HEAD does not point to tree")?
+                            .as_object(),
+                        Some(
+                            git2::build::CheckoutBuilder::new()
+                                .force()
+                                .remove_untracked(true)
+                                .remove_ignored(true),
+                        ),
+                    )
+                    .context("Update checked-out tree")?;
+            }
 
             // TODO: Prune
 

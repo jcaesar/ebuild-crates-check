@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use crossbeam_utils::atomic::AtomicCell;
 use rustsec::package::{Name, Version};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 mod gitrepo;
@@ -37,7 +37,7 @@ struct Ebuild {
     path: String,
 }
 
-type EbuildDeps = dashmap::DashMap::<Ebuild, Vec<DepInfo>>;
+type EbuildDeps = dashmap::DashMap<Ebuild, Vec<DepInfo>>;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct CrateStatus {
@@ -50,8 +50,8 @@ struct CrateStatus {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 struct DepInfo {
-    name: String,
-    ver: String,
+    name: Name,
+    ver: Version,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -79,13 +79,14 @@ fn main() -> Result<()> {
     let mut yanks = Err(anyhow::anyhow!("crates.io not retrieved"));
     let mut rustsec_get = Err(anyhow::anyhow!("Rustsec repo not retrieved"));
     let sec_db_path = OPTS.work_dir.join("rustsec");
-    let gentoo_overlay_status = AtomicCell::new(Err(anyhow::anyhow!("gentoo overlay not processed")));
+    let gentoo_overlay_status =
+        AtomicCell::new(Err(anyhow::anyhow!("gentoo overlay not processed")));
     let deps = EbuildDeps::new();
 
     pool.scope(|scope| {
         scope.spawn(|_| {
             rustsec_get = (|| -> Result<_> {
-                let repo = gitrepo::RepoRepo::on(&sec_db_path)?;
+                let repo = gitrepo::RepoRepo::on_checkout(&sec_db_path)?;
                 repo.up_or_head(rustsec::repository::git::DEFAULT_URL, OPTS.offline)?;
                 Ok(())
             })().context("Get rustsec");
@@ -182,39 +183,54 @@ fn main() -> Result<()> {
     let yanks = yanks?;
     gentoo_overlay_status.swap(Ok(()))?;
     rustsec_get?;
-    let sec_db = rustsec::repository::git::Repository::open(&sec_db_path)
-        .context(format!("Failed to open rustsec db at {}", sec_db_path.to_string_lossy()))?;
-    anyhow::ensure!(sec_db.latest_commit()?.is_fresh(), "Rustsec database is stale");
-    let sec_db =  rustsec::database::Database::load_from_repo(&sec_db)
+    let sec_db = rustsec::repository::git::Repository::open(&sec_db_path).context(format!(
+        "Failed to open rustsec db at {}",
+        sec_db_path.to_string_lossy()
+    ))?;
+    anyhow::ensure!(
+        sec_db.latest_commit()?.is_fresh(),
+        "Rustsec database is stale"
+    );
+    let sec_db = rustsec::database::Database::load_from_repo(&sec_db)
         .context("Load rustsec DB from repo")?;
     let sec_db_info = rustsec::report::DatabaseInfo::new(&sec_db);
     log::info!("rustsec: {:?}", sec_db_info);
-    anyhow::ensure!(sec_db_info.advisory_count > 0, "0 advisories found. Sounds  wrong.");
+    anyhow::ensure!(
+        sec_db_info.advisory_count > 0,
+        "0 advisories found. Sounds  wrong."
+    );
 
     let mut crates = HashMap::new();
     for e in &deps {
         for dep in e.value() {
-            let name = Name::from_str(&dep.name)?;
-            let ver = Version::from_str(&dep.ver)?;
-            crates.entry(dep.clone()).or_insert_with(|| {
-                let sec_query = rustsec::database::Query::crate_scope()
-                    .package_version(name, ver);
-                let adv = sec_db.query(&sec_query).into_iter().map(AdvisoryMeta::from_advisory).collect();
-                if dep.name == "linked-hash-map" {
-                    println!("lhm {}, query: {:?}, adv: {:?}", dep.ver, sec_query, adv);
-                }
-                CrateStatus {
-                    id: dep.clone(),
-                    ebuilds: vec![],
-                    yanked: yanks.get(&dep.name).and_then(|vs| vs.get(&dep.ver)).map(|v| *v),
-                    advisories: adv,
-                }
-            }).ebuilds.push((*e.key()).clone());
+            crates
+                .entry(dep.clone())
+                .or_insert_with(|| {
+                    let sec_query = rustsec::database::Query::crate_scope()
+                        .package_version(dep.name.clone(), dep.ver.clone());
+                    let advisories = sec_db
+                        .query(&sec_query)
+                        .into_iter()
+                        .map(AdvisoryMeta::from_advisory)
+                        .collect();
+                    let yanked = yanks
+                        .get(&dep.name)
+                        .and_then(|vs| vs.get(&dep.ver))
+                        .map(|v| *v);
+                    CrateStatus {
+                        id: dep.clone(),
+                        ebuilds: vec![],
+                        yanked,
+                        advisories,
+                    }
+                })
+                .ebuilds
+                .push((*e.key()).clone());
         }
     }
     let mut crates = crates.into_iter().map(|(_, v)| v).collect::<Vec<_>>();
     std::mem::drop(deps);
-   
+
     crates.sort_by_cached_key(|e| {
         let used = e.ebuilds.len();
         let gentoo_used = e.ebuilds.iter().filter(|e| e.overlay == "gentoo").count();
@@ -235,10 +251,8 @@ fn main() -> Result<()> {
     }
     let outpath = OPTS.work_dir.join("status.json");
     log::debug!("Writing result to {}", outpath.to_string_lossy());
-    let file = std::fs::File::create(outpath)
-        .context("Open output file")?;
-    serde_json::to_writer_pretty(file, &Output { status: crates })
-        .context("Write output")?;
+    let file = std::fs::File::create(outpath).context("Open output file")?;
+    serde_json::to_writer_pretty(file, &Output { status: crates }).context("Write output")?;
 
     Ok(())
 }
@@ -304,17 +318,15 @@ fn parse(overlay: &str, path: String, content: &str, ret: &EbuildDeps) {
         };
         let res = crates
             .split_whitespace()
-            .filter_map(|spec_str| match re::DEPSPEC.captures(spec_str) {
-                Some(capt) => Some(DepInfo {
-                    name: capt[1].to_string(),
-                    ver: capt[2].to_string(),
-                }),
-                None => {
+            .filter_map(|spec_str| match cratespec_to_depinfo(spec_str) {
+                Ok(di) => Some(di),
+                Err(e) => {
                     log::warn!(
-                        "{}::{}: Could not parse dependency {}",
+                        "{}::{}: Could not parse dependency {}:{}",
                         overlay,
                         path,
                         spec_str,
+                        format_chain(&e),
                     );
                     None
                 }
@@ -330,6 +342,15 @@ fn parse(overlay: &str, path: String, content: &str, ret: &EbuildDeps) {
             path,
         );
     }
+}
+
+fn cratespec_to_depinfo(spec_str: &str) -> Result<DepInfo> {
+    let capt = re::DEPSPEC
+        .captures(spec_str)
+        .context("Does not match depspec regex")?;
+    let name = Name::from_str(&capt[1]).context("Invalid name")?;
+    let ver = Version::from_str(&capt[2]).context("Invalid version")?;
+    Ok(DepInfo { name, ver })
 }
 
 fn fgo() -> Result<Vec<overlays::Overlay>> {
@@ -372,7 +393,7 @@ struct RegistryPackage {
     yanked: bool,
 }
 
-type YankingStatus = HashMap<String, HashMap<String, bool>>;
+type YankingStatus = HashMap<Name, HashMap<Version, bool>>;
 
 fn list_crates<'a>(
     repo: &'a git2::Repository,
@@ -388,13 +409,19 @@ fn list_crates<'a>(
                 let content = content.as_blob().expect("Object blob").content();
                 let content = serde_json::from_slice::<RegistryPackage>(content).into_iter();
                 for info in content {
-                        ret.entry(info.name).or_insert_with(HashMap::new).insert(info.vers, info.yanked);
-                //match info {
-                //    Ok(info) => {
-                //        log::trace!("{}/{}: {:?}", folder, name, info);
-                //    },
-                //    Err(e) => log::error!("Cannot parse crate info for {}{}: {}", folder, name, e),
-                //}
+                    let name =
+                        Name::from_str(&info.name).expect("crates.io crate with invalid name");
+                    let vers =
+                        Version::from_str(&info.vers).expect("crates.io version spec unparseable");
+                    ret.entry(name)
+                        .or_insert_with(HashMap::new)
+                        .insert(vers, info.yanked);
+                    //match info {
+                    //    Ok(info) => {
+                    //        log::trace!("{}/{}: {:?}", folder, name, info);
+                    //    },
+                    //    Err(e) => log::error!("Cannot parse crate info for {}{}: {}", folder, name, e),
+                    //}
                 }
             }
         }
