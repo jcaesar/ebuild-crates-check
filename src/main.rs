@@ -13,6 +13,7 @@ const GENTOO_META_REPO_ORIGIN: &str = "https://github.com/gentoo/api-gentoo-org/
 const GENTO_META_REPO_REPO_LIST: &str = "files/overlays/repositories.xml";
 
 #[derive(clap::Clap, Debug)]
+#[clap(about,version,author)]
 struct Opts {
     #[clap(long, short = 'O')]
     offline: bool,
