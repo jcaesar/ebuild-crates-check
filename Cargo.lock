@@ -147,6 +147,7 @@ dependencies = [
  "cargo",
  "clap 3.0.0-beta.2",
  "crossbeam-utils",
+ "cvss",
  "dashmap",
  "git2",
  "git2-curl",

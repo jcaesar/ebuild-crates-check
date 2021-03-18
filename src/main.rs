@@ -43,9 +43,9 @@ type EbuildDeps = dashmap::DashMap<Ebuild, Vec<DepInfo>>;
 struct CrateStatus {
     #[serde(rename = "crate")]
     id: DepInfo,
-    ebuilds: Vec<Ebuild>,
     advisories: Vec<AdvisoryMeta>,
     yanked: Option<bool>,
+    ebuilds: Vec<Ebuild>,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
@@ -58,6 +58,7 @@ struct DepInfo {
 struct AdvisoryMeta {
     id: String,
     title: String,
+    cvss: Option<cvss::v3::base::Base>,
 }
 
 impl AdvisoryMeta {
@@ -65,6 +66,7 @@ impl AdvisoryMeta {
         AdvisoryMeta {
             id: a.metadata.id.as_str().to_string(),
             title: a.metadata.title.to_string(),
+            cvss: a.metadata.cvss.clone(),
         }
     }
 }
@@ -234,6 +236,12 @@ fn main() -> Result<()> {
     crates.sort_by_cached_key(|e| {
         let used = e.ebuilds.len();
         let gentoo_used = e.ebuilds.iter().filter(|e| e.overlay == "gentoo").count();
+        let score = e
+            .advisories
+            .iter()
+            .filter_map(|v| v.cvss.as_ref().map(|v| (v.score().value() * 1000.0) as i64))
+            .max()
+            .unwrap_or(i64::MIN);
         let prio = match e.advisories.is_empty() {
             false => 3,
             true => match e.yanked {
@@ -242,7 +250,7 @@ fn main() -> Result<()> {
                 Some(false) => 0,
             },
         };
-        std::cmp::Reverse((prio, gentoo_used, used))
+        std::cmp::Reverse((prio, gentoo_used, score, used))
     });
 
     #[derive(serde::Serialize)]
