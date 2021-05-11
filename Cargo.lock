@@ -411,9 +411,9 @@ dependencies = [
 
 [[package]]
 name = "cvss"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2ecd8322bca85301b52d821806315c282c7e5f85f03b0609e68d4189bda8f58"
+checksum = "829862dabeab142ae0efd558d42d8fd874659268ccd810809ac6f1ee6bfcbd3f"
 dependencies = [
  "serde",
 ]
