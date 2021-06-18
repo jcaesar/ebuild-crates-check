@@ -79,19 +79,18 @@ checksum = "81a18687293a1546b67c246452202bbbf143d239cb43494cc163da14979082da"
 
 [[package]]
 name = "cargo"
-version = "0.51.0"
+version = "0.54.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb7d89cbdcbeada632f64aa9f692e265852b0eb6ccdf3b1814716cc62101eeb6"
+checksum = "6cbd976a733418564685769d03cca35bf228ddfc2c8a5e6771ca0f48ce80ae2e"
 dependencies = [
  "anyhow",
  "atty",
  "bytesize",
  "cargo-platform",
+ "cargo-util",
  "clap 2.33.3",
- "core-foundation",
  "crates-io",
  "crossbeam-utils",
- "crypto-hash",
  "curl",
  "curl-sys",
  "env_logger 0.8.3",
@@ -113,15 +112,14 @@ dependencies = [
  "libgit2-sys",
  "log",
  "memchr",
- "miow",
  "num_cpus",
  "opener",
  "openssl",
  "percent-encoding",
  "pretty_env_logger",
+ "rand",
  "rustc-workspace-hack",
  "rustfix",
- "same-file",
  "semver 0.10.0",
  "serde",
  "serde_ignored",
@@ -181,6 +179,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0226944a63d1bf35a3b5f948dd7c59e263db83695c9e8bffc4037de02e30f1d7"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "cargo-util"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0c5259672ff02c8c4d291fb52c9e6936d97dbfacea8d7011a0621aaaaab4c28"
+dependencies = [
+ "anyhow",
+ "core-foundation",
+ "crypto-hash",
+ "filetime",
+ "hex 0.4.3",
+ "jobserver",
+ "libc",
+ "log",
+ "miow",
+ "same-file",
+ "shell-escape",
+ "tempfile",
+ "walkdir",
+ "winapi",
 ]
 
 [[package]]
@@ -299,15 +319,14 @@ dependencies = [
 
 [[package]]
 name = "crates-io"
-version = "0.31.1"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09f977948a46e9edf93eb3dc2d7a8dd4ce3105d36de63300befed37cdf051d4a"
+checksum = "217138863f33507d7a8edef10fc673c4911679ef7aeb9ff53ee7bb82dc7bf590"
 dependencies = [
  "anyhow",
  "curl",
  "percent-encoding",
  "serde",
- "serde_derive",
  "serde_json",
  "url",
 ]
