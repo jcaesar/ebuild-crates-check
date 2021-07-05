@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 cargo = { version = "0.51", features = [ "pretty-env-logger", "openssl" ] }
-rustsec = "0.23"
+rustsec = "0.24"
 git2 = "0.13"
 git2-curl = "0.14"
 quick-xml = { version = "0.22", features = [ "serialize" ] }
